@@ -1,81 +1,109 @@
+let canvasSize = 512;
+let groundColor = [127, 127, 127];
+let grassColor = [0, 200, 0];
+let defaultProp = 0.3;
+let defaultConn = 100;
+let avgScore = 0;
+
 let canvas = document.getElementById('pplot-canvas');
-canvas.width = 512;
-canvas.height = 512;
-
+canvas.width = canvasSize;
+canvas.height = canvasSize;
 let ctx = canvas.getContext('2d');
-let image = ctx.createImageData(canvas.width, canvas.height);
-let data = image.data;
-let groundColor = [240, 240, 240];
-let plantColor = [0, 220, 0];
 
-let prepareData = function(cellsize){
-    let pixelInd = 0; 
-    for (let i = 0; i < canvas.width; i++) {
-        for (let j = 0; j < canvas.height; j++) {
-            let value = noise.simplex2(i / cellsize, j / cellsize);
-            pixelInd = (i + j * canvas.width) * 4;
-            data[pixelInd] = data[pixelInd + 1] = data[pixelInd + 2] = value;
-            data[pixelInd + 3] = 255; 
-        }
-    }
+ctx.beginPath();
+ctx.rect(0, 0, canvasSize, canvasSize);
+ctx.stroke();
+
+let randomChoice = function(arr) {
+    return arr[Math.floor(arr.length * Math.random())];
 }
 
+let redrawPerlin = function(prop, agg){
 
-let computeProp=function(value, proportion){
-    let counter = 0;
-    let pixelInd = 0;
-    for (let i = 0; i < canvas.width; i++) {
-        for (let j = 0; j < canvas.height; j++) {
-            pixelInd = (i + j * canvas.width) * 4;
-                if (data[pixelInd] > value){
-                    counter++;
+    let seeds = [42, 13, 17, 29, 53];
+    let perlinData;
+
+    let i, cnt=0, probe=10, pos, minValue=1, optProbe, optValue, currentProp=0;
+   
+    perlinData = getPerlinData(canvas, agg, agg, randomChoice(seeds));
+    
+    while ((probe < 255) && (Math.abs(prop - currentProp) > 0.01)){   
+        cnt = 0; 
+        for (var y = 0; y < canvas.height; y ++) {
+            for (var x = 0; x < canvas.width; x ++) {
+                pos = (x + y * canvas.width) * 4;
+                if (perlinData.data[pos] > probe) {cnt++;}
+            }
+        }
+
+    currentProp = cnt / (canvas.width * canvas.height);
+    if (Math.abs(prop - currentProp) < minValue){
+        optProbe = probe;
+        optValue = currentProp;
+        minValue = Math.abs(prop - currentProp);
+        }
+    probe++;
+    }
+
+    for (var y = 0; y < canvas.height; y ++) {
+        for (var x = 0; x < canvas.width; x ++) {
+            pos = (x + y * canvas.width) * 4;
+            if (perlinData.data[pos] > optProbe){
+                perlinData.data[pos + 0] = grassColor[0];
+                perlinData.data[pos + 1] = grassColor[1];
+                perlinData.data[pos + 2] = grassColor[2];
+                perlinData.data[pos + 3] = 255;
+            }
+            else {
+                perlinData.data[pos + 0] = groundColor[0];
+                perlinData.data[pos + 1] = groundColor[1];
+                perlinData.data[pos + 2] = groundColor[2];
+                perlinData.data[pos + 3] = 255;
+
             }
         }
     }
-    return Math.abs(counter / (canvas.height * canvas.width) - proportion);
+    ctx.putImageData(perlinData, 0, 0);
+    return currentProp;
 }
 
 
+var exact = redrawPerlin(defaultProp, defaultConn);
 
-let plotData = function(proportion=0.3, cellsize=100){
-    prepareData(cellsize);
-    let pixelInd = 0;
+const connElement = document.getElementById("connectedness");
+const propElement = document.getElementById("proportion");
+const answerElement = document.getElementById("answer");
+const resultElement = document.getElementById("results");
+
+let propValue=parseFloat(propElement.value), connValue=parseFloat(connElement.value);
+
+
+let redrawScene = function(ev){
+    propValue = parseFloat(propElement.value);
+    connValue = parseFloat(connElement.value);
+
+    if (isNaN(propValue)) {
+        propElement.value = defaultProp;
+        propValue = defaultProp;
+    }
     
-    let value = -1.0;
-    let curValue = computeProp(value, proportion);
-    let cnt = 0;
-  
-    while ((Math.abs(curValue) > 0.05) && cnt < 200) {
-        value+=0.01;
-        curValue = computeProp(value, proportion);
-        cnt+=1;
-        console.log(value, curValue);
+    if (isNaN(connValue)) {
+        connElement.value = defaultConn;
+        connValue = defaultConn;
     }
+    exact = redrawPerlin(propValue, connValue);
 
-    if (!(cnt < 20)) {
-        console.log("Error occurred when trying to find optimal solution!");
-    }
-
-   optimal = curValue;
-
-    //Traverse all data points and change color
-    for (let i = 0; i < canvas.width; i++) {
-        for (let j = 0; j < canvas.height; j++) {
-            pixelInd = (i + j * canvas.width) * 4;
-                if (data[pixelInd] > optimal){
-                    data[pixelInd] = plantColor[0];
-                    data[pixelInd + 1] = plantColor[1];
-                    data[pixelInd + 2] = plantColor[2];
-                 }
-                else{
-                    data[pixelInd] = groundColor[0];
-                    data[pixelInd + 1] = groundColor[1];
-                    data[pixelInd + 2] = groundColor[2];
-                }
-        }
-    }
-    ctx.putImageData(image, 0, 0);
+    
 }
 
+let processAnswer = function(ev){
+    let val = ev.target.value;
+    const pElement = document.createElement("p");
+    pElement.innerText = "Exact proportion is: " + Math.floor(exact * 1000) / 1000;
+    resultElement.innerHTML = "";
+    resultElement.appendChild(pElement);
+}
 
-plotData(0.8);
+connElement.addEventListener('change', redrawScene);
+propElement.addEventListener('change', redrawScene);
+answerElement.addEventListener('change', processAnswer);
