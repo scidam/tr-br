@@ -3,11 +3,61 @@
 
 <head>
   <meta charset="utf-8">
-  <title>Train your Brain for estimation area of plant coveraget!</title>
+  <title>TR-BR: Train your brain on estimating area of vegetation cover!</title>
   <meta name="description" content="Train your Brain (Tr-Br) to get density assessments of vegetation cover!">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="main.css">
   <meta name="theme-color" content="currentcolor">
+  <style>
+    body,div {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: cornflowerblue;
+    }
+    #container {
+        position: relative;
+        width: 100%;
+    }
+    #centered-content {
+        display: relative;
+        margin: 0 auto;
+        max-width: 756px;
+        text-align: center;
+    }
+    #pplot-canvas{
+    border: 1px solid black;
+    width: 512px;
+    height: 512px;
+    }
+    .value-field{
+        width: 512px;
+        text-align: left;
+        margin: 0 auto;
+    }
+    label{
+        font-size: 2em;
+        clear: both;
+    }
+    .value-field > input{
+        width: 4em;
+        height: 30px;
+        font-size: 1em;
+        font-weight: 800;
+        display: inline;
+        text-align:center;
+    }
+    #answer{
+        width: 3em;    
+        height: 30px;
+        text-align: left;
+    }
+    #refreshButton{
+        width: 7em;
+        height: 2em;
+    }
+  </style>
 </head>
 
 <body>
@@ -17,46 +67,325 @@
 
   <div id="container">
     <div id="centered-content">
-      <h1>Improve estimation ability</h1>
+      <h1>Simple trainer aimed on improving your ability to estimate plant coverage</h1>
 
-      <p>Description detailed goes here!</p>
+      <p>
+
+      </p>
 
       <canvas id="pplot-canvas"></canvas>
 
       <div id="controls">
 
-        <div class="value-field">
-          <label for="proportion">Area:</label>
-          <input id="proportion" type="text" value="0.3" title="">
+        <div>
+          <input id="refreshButton" type="button" value="Refresh">
         </div>
 
         <div class="value-field">
           <label for="connectedness">Connectedness:</label>
-          <input id="connectedness" type="text" value="50" title="The greater, the more vegetation cover islands connected each other">
+          <select id="connectedness" title="The greater, the more vegetation cover islands connected each other">
+          </select>
         </div>
 
         <div class="value-field">
-          <label for="answer">Answer:</label>
+          <label for="answer">Enter your answer:</label>
           <input id="answer" type="text" value="" title="Enter your answer here">
         </div>
-
       </div>
       
-      <div id="results">
+      <div id="results"></div>
 
-      </div>
-      
-      
+      <div id="score"></div>
     </div>
   </div>
 
   
+  <!-- Prelin's noise script -->
+  <script>
+  /*
+  * A simplex noise algorithms for 2D.
+  *
+  * Based on example code by Stefan Gustavson (stegu@itn.liu.se).
+  *
+  * Modified for "tr-br" web-app by Dmitry E. Kislov (kislov@easydan.com)
+  * Dec. 8, 2019 
+  *
+  * Original version:
+  * https://github.com/lebesnec/island.js
+  */
+
+  var SimplexNoise = function(gen) {
+    this.rand = gen;
+    this.grad3 = [
+      [1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0], 
+      [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1], 
+      [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]
+    ]; 
+    
+    this.simplex = [ 
+      [0,1,2,3],[0,1,3,2],[0,0,0,0],[0,2,3,1],[0,0,0,0],[0,0,0,0],[0,0,0,0],[1,2,3,0], 
+      [0,2,1,3],[0,0,0,0],[0,3,1,2],[0,3,2,1],[0,0,0,0],[0,0,0,0],[0,0,0,0],[1,3,2,0], 
+      [0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0], 
+      [1,2,0,3],[0,0,0,0],[1,3,0,2],[0,0,0,0],[0,0,0,0],[0,0,0,0],[2,3,0,1],[2,3,1,0], 
+      [1,0,2,3],[1,0,3,2],[0,0,0,0],[0,0,0,0],[0,0,0,0],[2,0,3,1],[0,0,0,0],[2,1,3,0], 
+      [0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0], 
+      [2,0,1,3],[0,0,0,0],[0,0,0,0],[0,0,0,0],[3,0,1,2],[3,0,2,1],[0,0,0,0],[3,1,2,0], 
+      [2,1,0,3],[0,0,0,0],[0,0,0,0],[0,0,0,0],[3,1,0,2],[0,0,0,0],[3,2,0,1],[3,2,1,0]
+    ]; 
+  };
+
+  SimplexNoise.prototype.setSeed = function(seed) {
+    this.p = [];
+    this.rand.seed = seed;
+    
+    for (var i=0; i<256; i++) {
+      this.p[i] = Math.floor(this.rand.nextRange(0, 255));
+    }
+
+    this.perm = []; 
+    for(var i=0; i<512; i++) {
+      this.perm[i]=this.p[i & 255];
+    }
+  }
+
+  SimplexNoise.prototype.dot = function(g, x, y) {
+    return g[0]*x + g[1]*y;
+  };
+
+  SimplexNoise.prototype.noise = function(xin, yin) { 
+    var n0, n1, n2; 
+
+    var F2 = 0.5*(Math.sqrt(3.0)-1.0); 
+    var s = (xin+yin)*F2; 
+    var i = Math.floor(xin+s); 
+    var j = Math.floor(yin+s); 
+    var G2 = (3.0-Math.sqrt(3.0))/6.0; 
+    var t = (i+j)*G2; 
+    var X0 = i-t; 
+    var Y0 = j-t; 
+    var x0 = xin-X0; 
+    var y0 = yin-Y0; 
+
+    var i1, j1; 
+    if(x0>y0) {i1=1; j1=0;} 
+    else {i1=0; j1=1;}      
+
+    var x1 = x0 - i1 + G2; 
+    var y1 = y0 - j1 + G2; 
+    var x2 = x0 - 1.0 + 2.0 * G2;  
+    var y2 = y0 - 1.0 + 2.0 * G2; 
+
+    var ii = i & 255; 
+    var jj = j & 255; 
+    var gi0 = this.perm[ii+this.perm[jj]] % 12; 
+    var gi1 = this.perm[ii+i1+this.perm[jj+j1]] % 12; 
+    var gi2 = this.perm[ii+1+this.perm[jj+1]] % 12; 
+
+    var t0 = 0.5 - x0*x0-y0*y0; 
+    if(t0<0) n0 = 0.0; 
+    else { 
+      t0 *= t0; 
+      n0 = t0 * t0 * this.dot(this.grad3[gi0], x0, y0);  
+    } 
+    var t1 = 0.5 - x1*x1-y1*y1; 
+    if(t1<0) n1 = 0.0; 
+    else { 
+      t1 *= t1; 
+      n1 = t1 * t1 * this.dot(this.grad3[gi1], x1, y1); 
+    }
+    var t2 = 0.5 - x2*x2-y2*y2; 
+    if(t2<0) n2 = 0.0; 
+    else { 
+      t2 *= t2; 
+      n2 = t2 * t2 * this.dot(this.grad3[gi2], x2, y2); 
+    } 
+
+    return 70.0 * (n0 + n1 + n2); 
+  };
 
 
+  // Park-Miller-Carta Pseudo-Random Number Generator
+  function PRNG() {
+    this.seed = 1;
+    this.next = function() { return (this.gen() / 2147483647); };
+    this.nextRange = function(min, max)	{ return min + ((max - min) * this.next()) };
+    this.gen = function() { return this.seed = (this.seed * 16807) % 2147483647; };
+  };
 
-  
-  <script src="pnoise.js"></script>
-  <script src="control.js"></script>
+  function getPerlinData(canvas, baseX, baseY, seed) {
+      var rand = new PRNG();
+      var ctx = canvas.getContext('2d');
+      var imagedata = ctx.createImageData(canvas.width, canvas.height);
+      var data = imagedata.data;
+
+      var simplexR = new SimplexNoise(rand);
+      simplexR.setSeed(seed);
+
+      var simplexG = new SimplexNoise(rand);
+      simplexG.setSeed(seed + 1);
+
+      var simplexB = new SimplexNoise(rand);
+      simplexB.setSeed(seed + 2);
+
+      var pos, cr, cg, cb, gray;
+      for (var y = 0; y < canvas.height; y ++) {
+          for (var x = 0; x < canvas.width; x ++) {
+              pos = (x + y * canvas.width) * 4;
+
+              cr = Math.floor(((simplexR.noise(x / baseX, y / baseY) + 1) * 0.5) * 255);
+              cg = Math.floor(((simplexG.noise(x / baseX, y / baseY) + 1) * 0.5) * 255);
+              cb = Math.floor(((simplexB.noise(x / baseX, y / baseY) + 1) * 0.5) * 255);
+
+              gray = (cr + cg + cb) / 3;
+
+              data[pos + 0] = gray;
+              data[pos + 1] = gray;
+              data[pos + 2] = gray;
+              data[pos + 3] = 255;
+          }
+      }
+      return imagedata;
+  };
+  </script>
+
+  <script>
+    let canvasSize = 512;
+    let groundColor = [127, 127, 127];
+    let grassColor = [0, 200, 0];
+    let propChoicesRange = [0.05, 0.99]; // grass area (chosen randomly from this interval)
+    let connChoices = [20, 50, 80, 150, 200, 300, 400, 600]; // connectedness index;
+    let avgScore = 0; // User's average score accumulator
+    let numOfTries = 0; // used when avgScore is calculated;
+
+    let canvas = document.getElementById('pplot-canvas');
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    let ctx = canvas.getContext('2d');
+
+    ctx.beginPath();
+    ctx.rect(0, 0, canvasSize, canvasSize);
+    ctx.stroke();
+
+    let randomChoice = function(arr) {
+        return arr[Math.floor(arr.length * Math.random())];
+    }
+
+    let redrawPerlin = function(prop, agg){
+
+        let seeds = [42, 13, 17, 29, 53];
+        let perlinData;
+
+        let i, cnt=0, probe=10, pos, minValue=1, optProbe, optValue, currentProp=0;
+      
+        perlinData = getPerlinData(canvas, agg, agg, randomChoice(seeds));
+        
+        while ((probe < 255) && (Math.abs(prop - currentProp) > 0.01)){   
+            cnt = 0; 
+            for (var y = 0; y < canvas.height; y ++) {
+                for (var x = 0; x < canvas.width; x ++) {
+                    pos = (x + y * canvas.width) * 4;
+                    if (perlinData.data[pos] > probe) {cnt++;}
+                }
+            }
+
+        currentProp = cnt / (canvas.width * canvas.height);
+        if (Math.abs(prop - currentProp) < minValue){
+            optProbe = probe;
+            optValue = currentProp;
+            minValue = Math.abs(prop - currentProp);
+            }
+        probe++; // FIXME: bisection method should be implemented instead
+        }
+
+        for (var y = 0; y < canvas.height; y ++) {
+            for (var x = 0; x < canvas.width; x ++) {
+                pos = (x + y * canvas.width) * 4;
+                if (perlinData.data[pos] > optProbe){
+                    perlinData.data[pos + 0] = grassColor[0];
+                    perlinData.data[pos + 1] = grassColor[1];
+                    perlinData.data[pos + 2] = grassColor[2];
+                    perlinData.data[pos + 3] = 255;
+                }
+                else {
+                    perlinData.data[pos + 0] = groundColor[0];
+                    perlinData.data[pos + 1] = groundColor[1];
+                    perlinData.data[pos + 2] = groundColor[2];
+                    perlinData.data[pos + 3] = 255;
+
+                }
+            }
+        }
+        ctx.putImageData(perlinData, 0, 0);
+        return currentProp;
+    }
+
+    const connElement = document.getElementById("connectedness");
+    const answerElement = document.getElementById("answer");
+    const resultElement = document.getElementById("results");
+    const refreshElement = document.getElementById("refreshButton");
+    const pAnswerElement = document.createElement("p");
+    const avScoreElement = document.createElement("p");
+
+    connElement.innerHTML = "";
+
+    for (let i = 0; i < connChoices.length; i++){
+        let pElement = document.createElement("option");
+        pElement.innerText = connChoices[i].toString();
+        pElement.value = connChoices[i].toString();
+        connElement.appendChild(pElement);
+    }
+
+    let defaultConn = parseFloat(connElement.options[connElement.selectedIndex].value);
+    let rval = Math.random();
+    let defaultProp = propChoicesRange[1] * rval + propChoicesRange[0] * (1 - rval);
+    let exact = redrawPerlin(defaultProp, defaultConn);
+
+
+    let redrawScene = function(ev){
+        let rval = Math.random();
+        connValue = parseFloat(connElement.options[connElement.selectedIndex].value);
+        propValue = propChoicesRange[1] * rval + propChoicesRange[0] * (1 - rval);
+        exact = redrawPerlin(propValue, connValue);
+        answerElement.readOnly=false;
+        resultElement.innerHTML = "";
+        answerElement.style.backgroundColor="white";
+    }
+
+    let processAnswer = function(ev){
+        let answer = parseFloat(ev.target.value);
+        resultElement.innerHTML = "";
+        if (isNaN(answer)){
+            pAnswerElement.innerText = "Your answer is invalid! Try again.";
+            resultElement.appendChild(pAnswerElement);
+            return
+        }
+        else{
+            if (answer > 1) answer = 1;
+            if (answer < 0) answer = 0;
+            pAnswerElement.innerText = "Exact proportion is: " +
+                                Math.floor(exact * 1000) / 1000;
+            numOfTries += 1
+            avgScore = Math.abs(exact - answer) / numOfTries +
+                        avgScore * (numOfTries - 1) / numOfTries;
+            resultElement.appendChild(pAnswerElement);
+            answerElement.readOnly=true;
+            answerElement.style.backgroundColor="gray";
+        }
+        if (avgScore > 0){
+            avScoreElement.innerText = "Average error: " +
+                                        Math.floor(avgScore * 1000) / 1000 +
+                                        "(# of tries: " + numOfTries + " )";
+            resultElement.appendChild(avScoreElement);
+            
+        }
+    }
+    connElement.addEventListener('change', redrawScene);
+    answerElement.addEventListener('change', processAnswer);
+    answerElement.addEventListener('change', processAnswer);
+    refreshElement.addEventListener('click', redrawScene);
+  </script>
+
+
 </body>
 
 </html>
